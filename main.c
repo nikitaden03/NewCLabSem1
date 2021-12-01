@@ -3,6 +3,7 @@
 #include <string.h>
 #include <locale.h>
 #include <stdlib.h>
+#include <getopt.h>
 
 typedef struct MyFrame {
     int size_frame, flag1, flag2;
@@ -22,6 +23,15 @@ void init_array(MyFile *myFile, int count) {
 
 void resize_array(MyFile *myFile, int count) {
     myFile->myFrame = realloc(myFile->myFrame, sizeof(MyFrame) * count);
+}
+
+void init_file(char *str, MyFile *myFile) {
+    FILE *file = fopen(str, "rb");
+    if (file == NULL) {
+        fprintf(stderr, "File does not exist!");
+        exit(1);
+    }
+    myFile->file = file;
 }
 
 int get_size_tag(MyFile *myFile) {
@@ -88,19 +98,7 @@ void parse_frames(MyFile *myFile) {
     myFile->count = counter;
 }
 
-int main() {
-    setlocale(LC_ALL, "Russian");
-    FILE *file = fopen("../../3.mp3", "rb");
-    if (file == NULL) {
-        fprintf(stderr, "File does not exist!");
-        return 1;
-    }
-    MyFile *myFile = calloc(1, sizeof(MyFile));
-    myFile->file = file;
-    if (get_size_tag(myFile) == 0) {
-        fprintf(stderr, "FIle has an invalid structure!");
-    }
-    parse_frames(myFile);
+void show_tags(MyFile *myFile) {
     for (int i = 0; i < myFile->count; i++) {
         printf("%s", myFile->myFrame[i].name);
         if (myFile->myFrame->name == "APIC") continue;
@@ -108,6 +106,56 @@ int main() {
             printf("%c", myFile->myFrame[i].content[j]);
         }
         printf("\n");
+    }
+}
+
+int main(int argc, char *argv[]) {
+    setlocale(LC_ALL, "Russian");
+
+    int c, help = 0;
+
+    MyFile *myFile = calloc(1, sizeof(MyFile));
+
+    while (1) {
+        int option_index = 0;
+        static struct option long_options[] = {
+                {"filepath", 1, 0, 0},
+                {"show",     0, 0, 1},
+                {"set",      1, 0, 2},
+                {"value",    1, 0, 3},
+                {"get",      1, 0, 4}
+        };
+        c = getopt_long (argc, argv, "1",
+                         long_options, &option_index);
+        if (c == -1)
+            break;
+
+        switch (c) {
+            case 0:
+                init_file(optarg, myFile);
+                if (get_size_tag(myFile) == 0) {
+                    fprintf(stderr, "FIle has an invalid structure!");
+                }
+                parse_frames(myFile);
+                break;
+            case 1:
+                show_tags(myFile);
+                break;
+            case 2:
+                help++;
+                char *label = optarg;
+                c = getopt_long (argc, argv, "1",
+                                 long_options, &option_index);
+                if (c != 3)
+                    break;
+                char *value = optarg;
+                printf("%s %s", label, value);
+                break;
+            case 4:
+                break;
+            default:
+                break;
+        }
     }
     return 0;
 }
