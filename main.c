@@ -131,6 +131,17 @@ void show_tag(MyFile *myFile, const char *tag_name) {
     printf("Tag with this name does not exist!");
 }
 
+void set_tag(MyFile *myFile, const char *tag_name, const char *tag_value) {
+    for (int i = 0; i < myFile->count; i++) {
+        if (myFile->myFrame[i].name[0] == tag_name[0] && myFile->myFrame[i].name[1] == tag_name[1] &&
+            myFile->myFrame[i].name[3] == tag_name[3] && myFile->myFrame[i].name[2] == tag_name[2] &&
+            strlen(tag_name) == 4) {
+            myFile->myFrame[i].content = (char *) tag_value;
+            return;
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
     setlocale(LC_ALL, "Russian");
 
@@ -157,10 +168,11 @@ int main(int argc, char *argv[]) {
                 init_file(optarg, myFile);
                 if (get_size_tag(myFile) == 0) {
                     fprintf(stderr, "FIle has an invalid structure!");
+                    return 1;
                 }
-                parse_frames(myFile);
                 break;
             case 1:
+                parse_frames(myFile);
                 show_tags(myFile);
                 break;
             case 2:
@@ -171,14 +183,20 @@ int main(int argc, char *argv[]) {
                 if (c != 3)
                     break;
                 char *value = optarg;
-                printf("%s %s", label, value);
+                show_tag(myFile, label);
+                printf("\n");
+                set_tag(myFile, label, value);
+                printf("\n");
+                show_tag(myFile, label);
                 break;
             case 4:
+                parse_frames(myFile);
                 show_tag(myFile, optarg);
                 break;
             default:
                 break;
         }
     }
+    fclose(myFile->file);
     return 0;
 }
