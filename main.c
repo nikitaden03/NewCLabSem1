@@ -16,6 +16,7 @@ FILE *temp_file;
 typedef struct MyFile {
     FILE *file;
     int size_frames, count, difference;
+    char *path;
     MyFrame *myFrame;
 } MyFile;
 
@@ -29,6 +30,7 @@ void resize_array(MyFile *myFile, int count) {
 
 void init_file(char *str, MyFile *myFile) {
     FILE *file = fopen(str, "rb");
+    myFile->path = str;
     if (file == NULL) {
         fprintf(stderr, "File does not exist!");
         exit(1);
@@ -36,7 +38,7 @@ void init_file(char *str, MyFile *myFile) {
     myFile->file = file;
 }
 
-int get_size_tag(MyFile *myFile, int save_mode, int shift) {
+int get_size_tag(MyFile *myFile, int save_mode) {
     char header[3];
     for (int i = 0; i < 3; i++) {
         header[i] = (char) fgetc(myFile->file);
@@ -144,7 +146,6 @@ void parse_frames(MyFile *myFile, int save_mode, const char *tag_name, const cha
         int byte3 = myFile->size_frames  % 128;
         fprintf(temp_file, "%c%c%c%c", byte0, byte1, byte2, byte3);
         fseek(temp_file, pointer, SEEK_SET);
-        exit(0);
     }
     myFile->count = counter;
 }
@@ -207,7 +208,7 @@ int main(int argc, char *argv[]) {
                 init_file(optarg, myFile);
                 break;
             case 1:
-                if (get_size_tag(myFile, 0, 0) == 0) {
+                if (get_size_tag(myFile, 0) == 0) {
                     fprintf(stderr, "FIle has an invalid structure!");
                     return 1;
                 }
@@ -223,15 +224,22 @@ int main(int argc, char *argv[]) {
                     break;
                 char *value = optarg;
                 temp_file = fopen("../../temp_file.mp3", "wb");
-                if (get_size_tag(myFile, 1, (int) strlen(value)) == 0) {
+                if (get_size_tag(myFile, 1) == 0) {
                     fprintf(stderr, "FIle has an invalid structure!");
                     return 1;
                 }
                 parse_frames(myFile, 1, label, value);
                 fclose(temp_file);
+                fclose(myFile->file);
+                char *true_path = malloc(strlen(myFile->path));
+                for (int i = 0; i < strlen(myFile->path); i++) {
+                    true_path[i] = myFile->path[i];
+                }
+                remove(true_path);
+                rename("../../temp_file.mp3", true_path);
                 break;
             case 4:
-                if (get_size_tag(myFile, 0, 0) == 0) {
+                if (get_size_tag(myFile, 0) == 0) {
                     fprintf(stderr, "FIle has an invalid structure!");
                     return 1;
                 }
