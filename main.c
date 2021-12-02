@@ -11,9 +11,11 @@ typedef struct MyFrame {
     char *content;
 } MyFrame;
 
+FILE *temp_file;
+
 typedef struct MyFile {
     FILE *file;
-    int size_frames, count;
+    int size_frames, count, difference;
     MyFrame *myFrame;
 } MyFile;
 
@@ -34,7 +36,7 @@ void init_file(char *str, MyFile *myFile) {
     myFile->file = file;
 }
 
-int get_size_tag(MyFile *myFile) {
+int get_size_tag(MyFile *myFile, int save_mode, int shift) {
     char header[3];
     for (int i = 0; i < 3; i++) {
         header[i] = (char) fgetc(myFile->file);
@@ -42,20 +44,29 @@ int get_size_tag(MyFile *myFile) {
     if (strncmp("ID3", header, strlen("ID3")) != 0) {
         return 0;
     }
-    fseek(myFile->file, 3, SEEK_CUR);
-    size_t byte0 = 128 * 128 * 128 * fgetc(myFile->file);
-    size_t byte1 = 128 * 128 * fgetc(myFile->file);
-    size_t byte2 = 128 * fgetc(myFile->file);
+    char c1 = (char) fgetc(myFile->file);
+    char c2 = (char) fgetc(myFile->file);
+    char c3 = (char) fgetc(myFile->file);
+    size_t byte0 = fgetc(myFile->file);
+    size_t byte1 = fgetc(myFile->file);
+    size_t byte2 = fgetc(myFile->file);
     size_t byte3 = fgetc(myFile->file);
-    myFile->size_frames = (int) (byte0 + byte1 + byte2 + byte3);
+    myFile->size_frames = (int) (128 * 128 * 128 * byte0 + 128 * 128 * byte1 + 128 * byte2 + byte3);
+    if (save_mode) {
+        fprintf(temp_file, "%c%c%c%c%c%c%c%c%c%c", header[0], header[1], header[2], c1, c2, c3, byte0, byte1, byte2,
+                byte3);
+    }
     return 1;
 }
 
-int parse_frame(MyFile *myFile, int counter) {
+int parse_frame(MyFile *myFile, int counter, int save_mode, const char *tag_name, const char *tag_value) {
     MyFrame *myFrame = calloc(1, sizeof(MyFrame));
     myFrame->name = calloc(4, sizeof(char));
     for (int i = 0; i < 4; i++) {
         myFrame->name[i] = (char) fgetc(myFile->file);
+        if (save_mode) {
+            fprintf(temp_file, "%c", myFrame->name[i]);
+        }
         if (!(myFrame->name[i] <= 'Z' && myFrame->name[i] >= 'A' ||
               myFrame->name[i] <= '9' && myFrame->name[i] >= '0')) {
             free(myFrame->name);
@@ -63,29 +74,50 @@ int parse_frame(MyFile *myFile, int counter) {
             return 0;
         }
     }
-    size_t byte0 = 128 * 128 * 128 * fgetc(myFile->file);
-    size_t byte1 = 128 * 128 * fgetc(myFile->file);
-    size_t byte2 = 128 * fgetc(myFile->file);
+    size_t byte0 = fgetc(myFile->file);
+    size_t byte1 = fgetc(myFile->file);
+    size_t byte2 = fgetc(myFile->file);
     size_t byte3 = fgetc(myFile->file);
-    myFrame->size_frame = (int) (byte0 + byte1 + byte2 + byte3);
+    myFrame->size_frame = (int) (128 * 128 * 128 * byte0 + 128 * 128 * byte1 + 128 * byte2 + byte3);
     myFrame->flag1 = fgetc(myFile->file);
     myFrame->flag2 = fgetc(myFile->file);
     myFrame->content = (char *) calloc(myFrame->size_frame, sizeof(char));
     for (int i = 0; i < myFrame->size_frame; i++) {
         myFrame->content[i] = (char) fgetc(myFile->file);
     }
+    if (save_mode) {
+        if (myFrame->name[0] == tag_name[0] && myFrame->name[1] == tag_name[1] &&
+            myFrame->name[3] == tag_name[3] && myFrame->name[2] == tag_name[2] &&
+            strlen(tag_name) == 4) {
+            myFrame->content = realloc(myFrame->content, strlen(tag_value));
+            myFile->difference = (int)(strlen(tag_name) - myFrame->size_frame);
+            myFrame->size_frame = (int) strlen(tag_value);
+            for (int j = 0; j < myFrame->size_frame; j++) {
+                myFrame->content[j] = tag_value[j];
+            }
+            byte0 = myFrame->size_frame / (128 * 128 * 128);
+            byte1 = myFrame->size_frame / (128 * 128) % 128;
+            byte2 = myFrame->size_frame / 128 % 128;
+            byte3 = myFrame->size_frame % 128;
+        }
+        fprintf(temp_file, "%c%c%c%c%c%c", byte0, byte1, byte2, byte3, myFrame->flag1, myFrame->flag2);
+        for (int j = 0; j < myFrame->size_frame; j++) {
+            fprintf(temp_file, "%c", myFrame->content[j]);
+        }
+    }
     if (strncmp("APIC", myFrame->name, strlen("APIC")) == 0) {
         return 0;
     }
-    myFile->myFrame[counter] = *myFrame;
+    if (!save_mode)
+        myFile->myFrame[counter] = *myFrame;
     return 1;
 }
 
-void parse_frames(MyFile *myFile) {
+void parse_frames(MyFile *myFile, int save_mode, const char *tag_name, const char *tag_value) {
     int counter = 0, total = 4;
     init_array(myFile, total);
     while (ftell(myFile->file) < myFile->size_frames) {
-        if (parse_frame(myFile, counter))
+        if (parse_frame(myFile, counter, save_mode, tag_name, tag_value) && !save_mode)
             counter++;
         if (counter == total) {
             total *= 2;
@@ -95,6 +127,24 @@ void parse_frames(MyFile *myFile) {
                 exit(1);
             }
         }
+    }
+    if (save_mode) {
+        char c;
+        while (fscanf(myFile->file, "%c", &c) != EOF) {
+            fprintf(temp_file, "%c", c);
+        }
+        fclose(temp_file);
+        temp_file = fopen("../../temp_file.mp3", "rb+");
+        int pointer = ftell(temp_file);
+        fseek(temp_file, 6, SEEK_SET);
+        myFile->size_frames += myFile->difference;
+        int byte0 = myFile->size_frames / (128 * 128 * 128);
+        int byte1 = myFile->size_frames  / (128 * 128) % 128;
+        int byte2 = myFile->size_frames  / 128 % 128;
+        int byte3 = myFile->size_frames  % 128;
+        fprintf(temp_file, "%c%c%c%c", byte0, byte1, byte2, byte3);
+        fseek(temp_file, pointer, SEEK_SET);
+        exit(0);
     }
     myFile->count = counter;
 }
@@ -131,17 +181,6 @@ void show_tag(MyFile *myFile, const char *tag_name) {
     printf("Tag with this name does not exist!");
 }
 
-void set_tag(MyFile *myFile, const char *tag_name, const char *tag_value) {
-    for (int i = 0; i < myFile->count; i++) {
-        if (myFile->myFrame[i].name[0] == tag_name[0] && myFile->myFrame[i].name[1] == tag_name[1] &&
-            myFile->myFrame[i].name[3] == tag_name[3] && myFile->myFrame[i].name[2] == tag_name[2] &&
-            strlen(tag_name) == 4) {
-            myFile->myFrame[i].content = (char *) tag_value;
-            return;
-        }
-    }
-}
-
 int main(int argc, char *argv[]) {
     setlocale(LC_ALL, "Russian");
 
@@ -166,13 +205,13 @@ int main(int argc, char *argv[]) {
         switch (c) {
             case 0:
                 init_file(optarg, myFile);
-                if (get_size_tag(myFile) == 0) {
+                break;
+            case 1:
+                if (get_size_tag(myFile, 0, 0) == 0) {
                     fprintf(stderr, "FIle has an invalid structure!");
                     return 1;
                 }
-                break;
-            case 1:
-                parse_frames(myFile);
+                parse_frames(myFile, 0, "", "");
                 show_tags(myFile);
                 break;
             case 2:
@@ -183,14 +222,20 @@ int main(int argc, char *argv[]) {
                 if (c != 3)
                     break;
                 char *value = optarg;
-                show_tag(myFile, label);
-                printf("\n");
-                set_tag(myFile, label, value);
-                printf("\n");
-                show_tag(myFile, label);
+                temp_file = fopen("../../temp_file.mp3", "wb");
+                if (get_size_tag(myFile, 1, (int) strlen(value)) == 0) {
+                    fprintf(stderr, "FIle has an invalid structure!");
+                    return 1;
+                }
+                parse_frames(myFile, 1, label, value);
+                fclose(temp_file);
                 break;
             case 4:
-                parse_frames(myFile);
+                if (get_size_tag(myFile, 0, 0) == 0) {
+                    fprintf(stderr, "FIle has an invalid structure!");
+                    return 1;
+                }
+                parse_frames(myFile, 0, "", "");
                 show_tag(myFile, optarg);
                 break;
             default:
