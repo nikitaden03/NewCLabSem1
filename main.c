@@ -15,7 +15,7 @@ FILE *temp_file;
 
 typedef struct MyFile {
     FILE *file;
-    int size_frames, count, difference;
+    int size_frames, count, difference, flag;
     char *path;
     MyFrame *myFrame;
 } MyFile;
@@ -51,6 +51,7 @@ void init_file(char *str, MyFile *myFile) {
         exit(1);
     }
     myFile->file = file;
+    myFile->flag = 0;
 }
 
 /**
@@ -122,7 +123,7 @@ int parse_frame(MyFile *myFile, int counter, int save_mode, const char *tag_name
             myFrame->name[3] == tag_name[3] && myFrame->name[2] == tag_name[2] &&
             strlen(tag_name) == 4) {
             myFrame->content = realloc(myFrame->content, strlen(tag_value));
-            myFile->difference = (int)(strlen(tag_name) - myFrame->size_frame);
+            myFile->difference = (int) (strlen(tag_name) - myFrame->size_frame);
             myFrame->size_frame = (int) strlen(tag_value);
             for (int j = 0; j < myFrame->size_frame; j++) {
                 myFrame->content[j] = tag_value[j];
@@ -131,6 +132,7 @@ int parse_frame(MyFile *myFile, int counter, int save_mode, const char *tag_name
             byte1 = myFrame->size_frame / (128 * 128) % 128;
             byte2 = myFrame->size_frame / 128 % 128;
             byte3 = myFrame->size_frame % 128;
+            myFile->flag = 1;
         }
         fprintf(temp_file, "%c%c%c%c%c%c", byte0, byte1, byte2, byte3, myFrame->flag1, myFrame->flag2);
         for (int j = 0; j < myFrame->size_frame; j++) {
@@ -168,6 +170,15 @@ void parse_frames(MyFile *myFile, int save_mode, const char *tag_name, const cha
         }
     }
     if (save_mode) {
+        if (!myFile->flag) {
+            fprintf(temp_file, "%c%c%c%c%c%c%c%c%c%c", tag_name[0], tag_name[1], tag_name[2], tag_name[3],
+                    strlen(tag_value) / (128 * 128 * 128), strlen(tag_value) / (128 * 128) % 128,
+                    strlen(tag_value) / 128 % 128, strlen(tag_value) % 128, 0, 0);
+            for (int i = 0; i < strlen(tag_value); i++) {
+                fprintf(temp_file, "%c", tag_value[i]);
+            }
+            myFile->difference = (int) strlen(tag_name);
+        }
         char c;
         while (fscanf(myFile->file, "%c", &c) != EOF) {
             fprintf(temp_file, "%c", c);
@@ -178,9 +189,9 @@ void parse_frames(MyFile *myFile, int save_mode, const char *tag_name, const cha
         fseek(temp_file, 6, SEEK_SET);
         myFile->size_frames += myFile->difference;
         int byte0 = myFile->size_frames / (128 * 128 * 128);
-        int byte1 = myFile->size_frames  / (128 * 128) % 128;
-        int byte2 = myFile->size_frames  / 128 % 128;
-        int byte3 = myFile->size_frames  % 128;
+        int byte1 = myFile->size_frames / (128 * 128) % 128;
+        int byte2 = myFile->size_frames / 128 % 128;
+        int byte3 = myFile->size_frames % 128;
         fprintf(temp_file, "%c%c%c%c", byte0, byte1, byte2, byte3);
         fseek(temp_file, pointer, SEEK_SET);
     }
