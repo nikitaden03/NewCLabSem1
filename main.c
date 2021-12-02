@@ -20,14 +20,29 @@ typedef struct MyFile {
     MyFrame *myFrame;
 } MyFile;
 
+/**
+ * @brief Инициализирует массив тегов
+ * @param myFile
+ * @param count  - Указывает количество элементов под которые требуется выделить память.
+ */
 void init_array(MyFile *myFile, int count) {
     myFile->myFrame = calloc(count, sizeof(MyFrame));
 }
 
+/**
+ * @brief Расширяет массив тегов
+ * @param myFile
+ * @param count - Указывает количество элементов под которые требуется выделить память.
+ */
 void resize_array(MyFile *myFile, int count) {
     myFile->myFrame = realloc(myFile->myFrame, sizeof(MyFrame) * count);
 }
 
+/**
+ * @brief Открывает файл с которым будем ввестись дальнейшая работа, также сохраняет нужные параметры
+ * @param str - Путь к файлу
+ * @param myFile
+ */
 void init_file(char *str, MyFile *myFile) {
     FILE *file = fopen(str, "rb");
     myFile->path = str;
@@ -38,6 +53,12 @@ void init_file(char *str, MyFile *myFile) {
     myFile->file = file;
 }
 
+/**
+ * @brief Парсит header тегов ID3V2
+ * @param myFile
+ * @param save_mode - флаг, указывающий нужно ли ввести запись в файл
+ * @return
+ */
 int get_size_tag(MyFile *myFile, int save_mode) {
     char header[3];
     for (int i = 0; i < 3; i++) {
@@ -61,6 +82,15 @@ int get_size_tag(MyFile *myFile, int save_mode) {
     return 1;
 }
 
+/**
+ * @brief Парсит и изменяет, в случае необходимости, тег
+ * @param myFile
+ * @param counter
+ * @param save_mode флаг, указывающий нужно ли ввести запись в файл
+ * @param tag_name id тега, значение которого требуется изменить
+ * @param tag_value значение тега
+ * @return
+ */
 int parse_frame(MyFile *myFile, int counter, int save_mode, const char *tag_name, const char *tag_value) {
     MyFrame *myFrame = calloc(1, sizeof(MyFrame));
     myFrame->name = calloc(4, sizeof(char));
@@ -115,6 +145,13 @@ int parse_frame(MyFile *myFile, int counter, int save_mode, const char *tag_name
     return 1;
 }
 
+/**
+ * @brief Парсит теги и, если это необходимо, переписывает файл
+ * @param myFile
+ * @param save_mode флаг, указывающий нужно ли ввести запись в файл
+ * @param tag_name id тега, значение которого требуется изменить
+ * @param tag_value значение тега
+ */
 void parse_frames(MyFile *myFile, int save_mode, const char *tag_name, const char *tag_value) {
     int counter = 0, total = 4;
     init_array(myFile, total);
@@ -150,6 +187,10 @@ void parse_frames(MyFile *myFile, int save_mode, const char *tag_name, const cha
     myFile->count = counter;
 }
 
+/**
+ * @brief Выводит все теги в виде ID - значение
+ * @param myFile
+ */
 void show_tags(MyFile *myFile) {
     for (int i = 0; i < myFile->count; i++) {
         printf("%s -", myFile->myFrame[i].name);
@@ -164,6 +205,11 @@ void show_tags(MyFile *myFile) {
     }
 }
 
+/**
+ * @brief Выводит значение тега, который задается пользователем
+ * @param myFile
+ * @param tag_name
+ */
 void show_tag(MyFile *myFile, const char *tag_name) {
     for (int i = 0; i < myFile->count; i++) {
         if (myFile->myFrame[i].name[0] == tag_name[0] && myFile->myFrame[i].name[1] == tag_name[1] &&
