@@ -23,6 +23,9 @@ unsigned char game_map[560][560];
 
 unsigned char *hash_table;
 
+/**
+ * @brief Проверяет, существует ли директория. В противном случае создает.
+ */
 void check_dir() {
     DIR *dir = opendir(myConfiguration->output_name);
     if (dir == NULL) {
@@ -31,6 +34,10 @@ void check_dir() {
     closedir(dir);
 }
 
+/**
+ * @brief Генерирует строчку вида путь к папке/Generation номер поколения.
+ * @return Возвращает путь к файлу
+ */
 char *generate_name() {
     static int num_picture = 0;
     num_picture++;
@@ -45,6 +52,11 @@ char *generate_name() {
     return label;
 }
 
+/**
+ * @brief Записывает числа в заголовок bmp.
+ * @param file Объект открытого файла bmp
+ * @param num Число, которое надо напечатать.
+ */
 void print_num(FILE *file, int num) {
     char byte0 = (char) (num / (256 * 256 * 256));
     char byte1 = (char) (num / (256 * 256) % 256);
@@ -53,18 +65,27 @@ void print_num(FILE *file, int num) {
     fprintf(file, "%c%c%c%c", byte3, byte2, byte1, byte0);
 }
 
+/**
+ * @brief Генерирует 2 значения хеша.
+ * @param hash1 Значение первого хеша
+ * @param hash2 Значение второго хеша
+ */
 void get_hash(int *hash1, int *hash2) {
     long long key1 = 1, key2 = 1;
     for (int i = 0; i < myBmpInstance->height; i++) {
         for (int j = 0; j < ((myBmpInstance->width + 31) / 32 * 32); j++) {
-            *hash1 = (int)(*hash1 + game_map[i][j] * key1) % SIZE_TABLE;
-            *hash2 = (int)(*hash2 + game_map[i][j] * key2) % SIZE_TABLE;
+            *hash1 = (int) (*hash1 + game_map[i][j] * key1) % SIZE_TABLE;
+            *hash2 = (int) (*hash2 + game_map[i][j] * key2) % SIZE_TABLE;
             key1++;
             key2 = (key2 + 3) % INT_MAX;
         }
     }
 }
 
+/**
+ * @brief Инициализирует хеш таблицу
+ * @return Возвращает код операции, показывающий успех выделения памяти
+ */
 int init_table() {
     hash_table = (unsigned char *) calloc(sizeof(unsigned char), SIZE_TABLE * SIZE_TABLE);
     if (hash_table == NULL) {
@@ -74,6 +95,10 @@ int init_table() {
     return 0;
 }
 
+/**
+ * @brief Парсит изображение из файла, записывает основные данные хедера в структуру.
+ * @return Возвращает код операции, показывающий успех чтения картинки
+ */
 int parseImage() {
     FILE *file = fopen(myConfiguration->input_name, "rb");
     if (file == NULL) {
@@ -166,7 +191,10 @@ int parseImage() {
     return 0;
 }
 
-int save_image() {
+/**
+ * @brief Сохраняет данные об игре в картинку, имя которой получает в функции выше.
+ */
+void save_image() {
     check_dir();
     FILE *file = fopen(generate_name(), "wb");
     fwrite(myBmpInstance->type_object, sizeof(char), 2, file);
@@ -209,9 +237,12 @@ int save_image() {
         fprintf(file, "%c", help);
     }
     fclose(file);
-    return 1;
 }
 
+/**
+ * @brief Генерирует следующее поколение игры, также записывает его в хеш функцию и, в случае, если такая расстановка
+ * была, прекращает игры
+ */
 void make_step() {
 
     unsigned char game_map_new[560][560];
