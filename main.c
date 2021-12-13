@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <malloc.h>
 #include <stdlib.h>
+#include <dirent.h>
 
 typedef struct MyConfiguration {
     char *input_name, *output_name;
@@ -11,11 +12,42 @@ typedef struct MyConfiguration {
 typedef struct MyBmpInstance {
     char type_object[2], reserved1[2], reserved2[2], planes[2], bit_count[2], resolution[8];
     int size_file, offset_bits, size_image_header, width, height, compression, size_image, colors_used, colors_important;
+    char *useless_staff;
 } MyBmpInstance;
 
 MyConfiguration *myConfiguration;
 MyBmpInstance *myBmpInstance;
-unsigned char *game_map;
+unsigned char game_map[1000][1000];
+
+void check_dir() {
+    DIR *dir = opendir(myConfiguration->output_name);
+    if (dir == NULL) {
+        mkdir(myConfiguration->output_name);
+    }
+    closedir(dir);
+}
+
+char *generate_name() {
+    static int num_picture = 0;
+    num_picture++;
+    char *num_pictures_str = calloc(1000, 1);
+    char *label = calloc(1000, 1);
+    strcat(label, myConfiguration->output_name);
+    strcat(label, "/Generation ");
+    sprintf(num_pictures_str, "%d", num_picture);
+    strcat(label, num_pictures_str);
+    strcat(label, ".bmp");
+    free(num_pictures_str);
+    return label;
+}
+
+void print_num(FILE *file, int num) {
+    char byte0 = (char) (num / (256 * 256 * 256));
+    char byte1 = (char) (num / (256 * 256) % 256);
+    char byte2 = (char) (num / 256 % 256);
+    char byte3 = (char) (num % 256);
+    fprintf(file, "%c%c%c%c", byte3, byte2, byte1, byte0);
+}
 
 int parseImage() {
     FILE *file = fopen(myConfiguration->input_name, "rb");
@@ -25,34 +57,183 @@ int parseImage() {
     }
     fread(myBmpInstance->type_object, sizeof(char) * 2, 1, file);
     fread(&myBmpInstance->size_file, sizeof(int), 1, file);
-    fread(&myBmpInstance->reserved1, sizeof(char) * 2, 1, file);
-    fread(&myBmpInstance->reserved2, sizeof(char) * 2, 1, file);
+    fread(myBmpInstance->reserved1, sizeof(char) * 2, 1, file);
+    fread(myBmpInstance->reserved2, sizeof(char) * 2, 1, file);
     fread(&myBmpInstance->offset_bits, sizeof(int), 1, file);
     fread(&myBmpInstance->size_image_header, sizeof(int), 1, file);
     fread(&myBmpInstance->width, sizeof(int), 1, file);
     fread(&myBmpInstance->height, sizeof(int), 1, file);
-    fread(&myBmpInstance->planes, sizeof(char) * 2, 1, file);
-    fread(&myBmpInstance->bit_count, sizeof(char) * 2, 1, file);
+    fread(myBmpInstance->planes, sizeof(char) * 2, 1, file);
+    fread(myBmpInstance->bit_count, sizeof(char) * 2, 1, file);
     fread(&myBmpInstance->compression, sizeof(int), 1, file);
     fread(&myBmpInstance->size_image, sizeof(int), 1, file);
-    fread(&myBmpInstance->resolution, sizeof(char) * 8, 1, file);
+    fread(myBmpInstance->resolution, sizeof(char) * 8, 1, file);
     fread(&myBmpInstance->colors_used, sizeof(int), 1, file);
     fread(&myBmpInstance->colors_important, sizeof(int), 1, file);
+    myBmpInstance->useless_staff = (char *) malloc(sizeof(char) * myBmpInstance->offset_bits - 54);
+    fread(myBmpInstance->useless_staff, sizeof(char), myBmpInstance->offset_bits - 54, file);
     if (myBmpInstance->bit_count[0] != 1) {
         printf("Picture must be monochrome!");
         return 2;
     }
-    game_map = malloc(sizeof(char) * myBmpInstance->width * myBmpInstance->height);
-    int help, i = 0;
-    while (i < myBmpInstance->width * myBmpInstance->height) {
+
+    for (int i = 0; i < 1000; i++) {
+        for (int j = 0; j < 1000; j++) {
+            game_map[i][j] = 1;
+        }
+    }
+
+    int help, i = 0, j = 0;
+
+    while (i * myBmpInstance->height + j < myBmpInstance->size_image * 8) {
         help = fgetc(file);
-        while (help > 0) {
-            game_map[i] = help % 2;
-            help /= 2;
+        game_map[i][j] = help / (128);
+        j++;
+        if (j == ((myBmpInstance->width + 31) / 32 * 32)) {
+            j = 0;
+            i++;
+        }
+        game_map[i][j] = help / (64) % 2;
+        j++;
+        if (j == ((myBmpInstance->width + 31) / 32 * 32)) {
+            j = 0;
+            i++;
+        }
+        game_map[i][j] = help / (32) % 2;
+        j++;
+        if (j == ((myBmpInstance->width + 31) / 32 * 32)) {
+            j = 0;
+            i++;
+        }
+        game_map[i][j] = help / (16) % 2;
+        j++;
+        if (j == ((myBmpInstance->width + 31) / 32 * 32)) {
+            j = 0;
+            i++;
+        }
+        game_map[i][j] = help / 8 % 2;
+        j++;
+        if (j == ((myBmpInstance->width + 31) / 32 * 32)) {
+            j = 0;
+            i++;
+        }
+        game_map[i][j] = help / 4 % 2;
+        j++;
+        if (j == ((myBmpInstance->width + 31) / 32 * 32)) {
+            j = 0;
+            i++;
+        }
+        game_map[i][j] = help / 2 % 2;
+        j++;
+        if (j == ((myBmpInstance->width + 31) / 32 * 32)) {
+            j = 0;
+            i++;
+        }
+        game_map[i][j] = help % 2;
+        j++;
+        if (j == ((myBmpInstance->width + 31) / 32 * 32)) {
+            j = 0;
             i++;
         }
     }
+
+    fclose(file);
     return 0;
+}
+
+int save_image() {
+    check_dir();
+    FILE *file = fopen(generate_name(), "wb");
+    fwrite(myBmpInstance->type_object, sizeof(char), 2, file);
+    print_num(file, myBmpInstance->size_file);
+    fwrite(&myBmpInstance->reserved1, sizeof(char), 2, file);
+    fwrite(&myBmpInstance->reserved2, sizeof(char), 2, file);
+    print_num(file, myBmpInstance->offset_bits);
+    print_num(file, myBmpInstance->size_image_header);
+    print_num(file, myBmpInstance->width);
+    print_num(file, myBmpInstance->height);
+    fwrite(&myBmpInstance->planes, sizeof(char), 2, file);
+    fwrite(&myBmpInstance->bit_count, sizeof(char), 2, file);
+    print_num(file, myBmpInstance->compression);
+    print_num(file, myBmpInstance->size_image);
+    fwrite(&myBmpInstance->resolution, sizeof(char), 8, file);
+    print_num(file, myBmpInstance->colors_used);
+    print_num(file, myBmpInstance->colors_important);
+
+    unsigned char help;
+
+    for (int i = 0; i < myBmpInstance->offset_bits - 54; i++) {
+        fprintf(file, "%c", myBmpInstance->useless_staff[i]);
+    }
+
+    int j = 0, i = 0;
+
+    while (i * myBmpInstance->height + j < myBmpInstance->size_image * 8) {
+        help = 0;
+        unsigned char k = (unsigned char) 128, c = 0;
+        while (c < 8) {
+            help += (char) (k * game_map[i][j]);
+            k /= 2;
+            c++;
+            j++;
+            if (j == ((myBmpInstance->width + 31) / 32 * 32)) {
+                j = 0;
+                i++;
+            }
+        }
+        fprintf(file, "%c", help);
+    }
+    fclose(file);
+    return 1;
+}
+
+void make_step() {
+
+    unsigned char game_map_new[1000][1000];
+
+    for (int i = 0; i < myBmpInstance->height; i++) {
+        for (int j = 0; j < ((myBmpInstance->width + 31) / 32 * 32); j++) {
+            if (i == 5 && j == 74) {}
+            int count_live_cells = 0;
+            if (i - 1 >= 0 && j - 1 >= 0 && game_map[i - 1][j - 1] == 0)
+                count_live_cells++;
+
+            if (i - 1 >= 0 && game_map[i - 1][j] == 0)
+                count_live_cells++;
+
+            if (i - 1 >= 0 && j + 1 < (myBmpInstance->width + 31) / 32 * 32 && game_map[i - 1][j + 1] == 0)
+                count_live_cells++;
+
+            if (j - 1 >= 0 && game_map[i][j - 1] == 0)
+                count_live_cells++;
+
+            if (j + 1 < (myBmpInstance->width + 31) / 32 * 32 && game_map[i][j + 1] == 0)
+                count_live_cells++;
+
+            if (i + 1 < myBmpInstance->height && j - 1 >= 0 && game_map[i + 1][j - 1] == 0)
+                count_live_cells++;
+
+            if (i + 1 < myBmpInstance->height && game_map[i + 1][j] == 0)
+                count_live_cells++;
+
+            if (i + 1 < myBmpInstance->height && j + 1 < (myBmpInstance->width + 31) / 32 * 32 &&
+                game_map[i + 1][j + 1] == 0)
+                count_live_cells++;
+            if (game_map[i][j] == 1 && count_live_cells == 3 ||
+                game_map[i][j] == 0 && (count_live_cells == 3 || count_live_cells == 2)) {
+                game_map_new[i][j] = 0;
+            } else {
+                game_map_new[i][j] = (unsigned char) 1;
+            }
+        }
+    }
+
+    for (int i = 0; i < myBmpInstance->height; i++) {
+        for (int j = 0; j < ((myBmpInstance->width + 31) / 32 * 32); j++) {
+            game_map[i][j] = game_map_new[i][j];
+        }
+    }
+
 }
 
 int main(int argc, char *argv[]) {
@@ -96,6 +277,14 @@ int main(int argc, char *argv[]) {
     int result = parseImage();
     if (result != 0) {
         return 0;
+    }
+
+    int i = 0;
+    while (i < myConfiguration->max_iter || (myConfiguration->max_iter == 0)) {
+        make_step();
+        if (i % myConfiguration->dump_freq == 0)
+            save_image();
+        i++;
     }
 
     return 0;
