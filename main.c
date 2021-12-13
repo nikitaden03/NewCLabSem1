@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <dirent.h>
 
+const int SIZE_TABLE = 25013;
+
 typedef struct MyConfiguration {
     char *input_name, *output_name;
     int max_iter, dump_freq;
@@ -17,7 +19,9 @@ typedef struct MyBmpInstance {
 
 MyConfiguration *myConfiguration;
 MyBmpInstance *myBmpInstance;
-unsigned char game_map[1000][1000];
+unsigned char game_map[560][560];
+
+unsigned char *hash_table;
 
 void check_dir() {
     DIR *dir = opendir(myConfiguration->output_name);
@@ -49,6 +53,27 @@ void print_num(FILE *file, int num) {
     fprintf(file, "%c%c%c%c", byte3, byte2, byte1, byte0);
 }
 
+void get_hash(int *hash1, int *hash2) {
+    long long key1 = 1, key2 = 1;
+    for (int i = 0; i < myBmpInstance->height; i++) {
+        for (int j = 0; j < ((myBmpInstance->width + 31) / 32 * 32); j++) {
+            *hash1 = (int)(*hash1 + game_map[i][j] * key1) % SIZE_TABLE;
+            *hash2 = (int)(*hash2 + game_map[i][j] * key2) % SIZE_TABLE;
+            key1++;
+            key2 = (key2 + 3) % INT_MAX;
+        }
+    }
+}
+
+int init_table() {
+    hash_table = (unsigned char *) calloc(sizeof(unsigned char), SIZE_TABLE * SIZE_TABLE);
+    if (hash_table == NULL) {
+        fprintf(stderr, "There is not enough memory!");
+        return 1;
+    }
+    return 0;
+}
+
 int parseImage() {
     FILE *file = fopen(myConfiguration->input_name, "rb");
     if (file == NULL) {
@@ -77,8 +102,8 @@ int parseImage() {
         return 2;
     }
 
-    for (int i = 0; i < 1000; i++) {
-        for (int j = 0; j < 1000; j++) {
+    for (int i = 0; i < 500; i++) {
+        for (int j = 0; j < 500; j++) {
             game_map[i][j] = 1;
         }
     }
@@ -189,7 +214,7 @@ int save_image() {
 
 void make_step() {
 
-    unsigned char game_map_new[1000][1000];
+    unsigned char game_map_new[560][560];
 
     for (int i = 0; i < myBmpInstance->height; i++) {
         for (int j = 0; j < ((myBmpInstance->width + 31) / 32 * 32); j++) {
@@ -233,6 +258,14 @@ void make_step() {
             game_map[i][j] = game_map_new[i][j];
         }
     }
+
+    int hash1 = 0, hash2 = 0;
+    get_hash(&hash1, &hash2);
+    if (hash_table[hash1 * SIZE_TABLE + hash2] == 1) {
+        exit(0);
+    }
+
+    hash_table[hash1 * SIZE_TABLE + hash2] = 1;
 
 }
 
@@ -279,8 +312,14 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    result = init_table();
+
+    if (result != 0) {
+        return 0;
+    }
+
     int i = 0;
-    while (i < myConfiguration->max_iter || (myConfiguration->max_iter == 0)) {
+    while ((i < myConfiguration->max_iter || (myConfiguration->max_iter == 0))) {
         make_step();
         if (i % myConfiguration->dump_freq == 0)
             save_image();
