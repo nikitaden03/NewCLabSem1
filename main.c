@@ -77,7 +77,7 @@ void get_hash(int *hash1, int *hash2) {
             *hash1 = (int) (*hash1 + game_map[i][j] * key1) % SIZE_TABLE;
             *hash2 = (int) (*hash2 + game_map[i][j] * key2) % SIZE_TABLE;
             key1++;
-            key2 = (key2 + 3) % INT_MAX;
+            key2 = (key2 * (i + 1)) % INT_MAX;
         }
     }
 }
